@@ -1,13 +1,70 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>control-sst-contratistas</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CONTROL SST - Paramonga</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- Vista de Login -->
+  <div id="login-view" class="login-page">
+    <div class="login-card">
+      <img src="./assets/logo pga.png" alt="Agro Industrial Paramonga" class="login-logo" />
+      <h1>CONTROL SST</h1>
+      <p>Gestión documental de contratistas</p>
+      <form id="login-form">
+        <label for="usuario">Usuario</label>
+        <input type="text" id="usuario" placeholder="Ingrese su usuario" required />
+        <label for="clave">Contraseña</label>
+        <input type="password" id="clave" placeholder="Ingrese su contraseña" required />
+        <button type="submit">Ingresar</button>
+      </form>
+      <small>Prototipo académico · Anjhely C.</small>
+    </div>
+  </div>
+
+  <!-- Vista de la Aplicación -->
+  <div id="app-view" class="sst-app" style="display: none;">
+    <header class="topbar">
+      <div class="brand">
+        <img src="./assets/logo-paramonga.jpg" alt="Logo" class="brand-logo" />
+        <div>
+          <strong id="nombre-plataforma">CONTROL SST</strong>
+          <small>Gestión documental de contratistas</small>
+        </div>
+      </div>
+      <span class="prototype">PROTOTIPO · DATOS FICTICIOS</span>
+    </header>
+    
+    <div class="layout">
+      <nav class="sidebar" id="sidebar">
+        <!-- Los botones del menú se generarán con JS -->
+      </nav>
+      
+      <main class="content">
+        <div id="message-box" class="notice" style="display: none;"></div>
+        
+        <div class="heading">
+          <div>
+            <span class="eyebrow">SEGURIDAD Y SALUD EN EL TRABAJO</span>
+            <h1 id="page-title">Panel general</h1>
+            <p>Plataforma demostrativa de verificación y control de requisitos SST.</p>
+          </div>
+          <span class="date" id="current-date"></span>
+        </div>
+
+        <!-- Contenedor dinámico para las tablas y formularios -->
+        <div id="tab-content"></div>
+        
+        <footer>
+          Prototipo académico. Los datos se guardan solo en este navegador. 
+          <button class="reset" id="btn-reset">Restaurar datos de prueba</button>
+        </footer>
+      </main>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
 </html>
