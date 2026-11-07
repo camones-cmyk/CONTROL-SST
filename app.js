@@ -17,7 +17,6 @@ const getStatus = (doc) => (doc.expiry && daysUntil(doc.expiry) < 0) ? 'Vencido'
 const getCompanyName = (id) => data.companies.find(c => c.id === id)?.name || 'Sin empresa';
 const getWorkerName = (id) => data.workers.find(w => w.id === id)?.name || 'Sin trabajador';
 
-// Requisitos base para autorizar (puedes cambiarlos aquí)
 const REQUISITOS_OBLIGATORIOS = ['SCTR', 'Inducción SST', 'Examen médico ocupacional'];
 
 const checkAccess = (worker) => {
@@ -49,28 +48,56 @@ async function cargarDatosNube() {
   }
 }
 
-// --- 5. INICIALIZACIÓN Y LOGIN ---
-document.addEventListener('DOMContentLoaded', () => {
+// --- 5. INICIALIZACIÓN Y SESIÓN ---
+document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('current-date').textContent = `Actualizado: ${today()}`;
   
-  document.getElementById('login-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const user = document.getElementById('usuario').value.trim().toLowerCase();
-    sesion = { rol: user === 'admin' ? 'admin' : 'contratista' };
-    
+  const sesionGuardada = localStorage.getItem('sst_sesion');
+  
+  if (sesionGuardada) {
+    sesion = JSON.parse(sesionGuardada);
     document.getElementById('login-view').style.display = 'none';
     document.getElementById('app-view').style.display = 'block';
-    
-    // Mostrar mensaje de carga
     document.getElementById('tab-content').innerHTML = '<p>Cargando datos desde la nube...</p>';
-    
     await cargarDatosNube();
+    renderSidebar();
+    renderTab('panel');
+  }
+
+  document.getElementById('login-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const userInput = document.getElementById('usuario').value.trim();
+    
+    document.getElementById('tab-content').innerHTML = '<p>Cargando datos desde la nube...</p>';
+    await cargarDatosNube();
+
+    if (userInput.toLowerCase() === 'admin') {
+      sesion = { rol: 'admin', empresaId: null };
+    } else {
+      const empresaEncontrada = data.companies.find(c => c.ruc === userInput);
+      if (empresaEncontrada) {
+        sesion = { rol: 'contratista', empresaId: empresaEncontrada.id };
+      } else {
+        alert('Usuario no válido. Ingresa "admin" o el RUC de una empresa registrada.');
+        document.getElementById('login-view').style.display = 'flex';
+        document.getElementById('app-view').style.display = 'none';
+        return;
+      }
+    }
+
+    localStorage.setItem('sst_sesion', JSON.stringify(sesion));
+
+    document.getElementById('login-view').style.display = 'none';
+    document.getElementById('app-view').style.display = 'block';
     renderSidebar();
     renderTab('panel');
   });
 
   document.getElementById('btn-reset').addEventListener('click', () => {
-    alert('Para borrar datos, hazlo directamente desde el panel de Supabase.');
+    if(confirm('¿Cerrar sesión actual?')) {
+      localStorage.removeItem('sst_sesion');
+      location.reload();
+    }
   });
 });
 
@@ -80,11 +107,12 @@ function renderSidebar() {
   const tabs = [
     ['panel', '📊', 'Panel general'], ['empresas', '🏭', 'Empresas'],
     ['trabajadores', '👷', 'Trabajadores'], ['documentos', '📋', 'Documentos SST'],
-    ['autorizaciones', '🛡️', 'Autorizaciones'], ['configuracion', '⚙️', 'Configuración']
+    ['autorizaciones', '🛡️', 'Autorizaciones']
   ];
   
+  // Si es contratista, ocultamos la pestaña "Empresas"
   nav.innerHTML = tabs
-    .filter(([id]) => sesion.rol === 'admin' || id !== 'configuracion')
+    .filter(([id]) => sesion.rol === 'admin' || id !== 'empresas')
     .map(([id, icon, label]) => `<button class="nav ${currentTab === id ? 'active' : ''}" onclick="switchTab('${id}')"><span>${icon}</span> ${label}</button>`)
     .join('') + `<div class="side-note">Agro Industrial Paramonga S.A.<br />Proyecto A.C · SENATI</div>`;
 }
@@ -96,26 +124,160 @@ window.switchTab = (tab) => {
 };
 
 function renderTab(tab) {
-  const titles = { panel: 'Panel general', empresas: 'Empresas contratistas', trabajadores: 'Trabajadores', documentos: 'Documentos SST', autorizaciones: 'Autorización de ingreso', configuracion: 'Configuración' };
+  const titles = { panel: 'Panel general', empresas: 'Empresas contratistas', trabajadores: 'Mis Trabajadores', documentos: 'Documentos SST', autorizaciones: 'Autorización de ingreso' };
   document.getElementById('page-title').textContent = titles[tab] || 'Panel';
   const container = document.getElementById('tab-content');
   container.innerHTML = '';
 
-  // --- PANEL GENERAL ---
+  // --- PANEL GENERAL (Diferente vista para Admin y Contratista) ---
   if (tab === 'panel') {
-    const approved = data.workers.filter(w => checkAccess(w) === 'Autorizado').length;
-    const expired = data.docs.filter(d => getStatus(d) === 'Vencido').length;
-    container.innerHTML = `
-      <div class="stats">
-        <div class="stat"><span>▤</span><strong>${data.companies.length}</strong><small>Empresas</small></div>
-        <div class="stat"><span>♙</span><strong>${data.workers.length}</strong><small>Trabajadores</small></div>
-        <div class="stat"><span>✓</span><strong>${approved}</strong><small>Autorizados</small></div>
-        <div class="stat"><span>!</span><strong>${expired}</strong><small>Vencidos</small></div>
-      </div>
-    `;
+    
+    // 1. VISTA DE ADMINISTRADOR
+    if (sesion.rol === 'admin') {
+      container.innerHTML = `
+        <div style="margin-bottom: 20px;">
+          <h3 style="color: var(--primary-green); font-size: 18px;">Panel de Control Global (Administrador)</h3>
+          <p style="color: #666; font-size: 14px;">Resumen de cumplimiento de todas las empresas contratistas.</p>
+        </div>
+
+        <div class="card">
+          <h2>🏭 Resumen por Empresa</h2>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Empresa</th>
+                  <th>Total Trabajadores</th>
+                  <th>Autorizados</th>
+                  <th>Docs Vencidos</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${data.companies.map(c => {
+                  const trabajadoresEmpresa = data.workers.filter(w => w.companyId === c.id);
+                  const docsEmpresa = data.docs.filter(d => trabajadoresEmpresa.some(t => t.id === d.workerId));
+                  const autorizados = trabajadoresEmpresa.filter(w => checkAccess(w) === 'Autorizado').length;
+                  const vencidos = docsEmpresa.filter(d => getStatus(d) === 'Vencido').length;
+
+                  return `
+                    <tr>
+                      <td><strong>${c.name}</strong><br><small>RUC: ${c.ruc}</small></td>
+                      <td>${trabajadoresEmpresa.length}</td>
+                      <td><span class="pill success">${autorizados} Autorizados</span></td>
+                      <td><span class="pill ${vencidos > 0 ? 'danger' : 'success'}">${vencidos} Vencidos</span></td>
+                    </tr>
+                  `;
+                }).join('')}
+                ${data.companies.length === 0 ? '<tr><td colspan="4">No hay empresas registradas.</td></tr>' : ''}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    } 
+    
+    // 2. VISTA DE CONTRATISTA
+    else {
+      const misTrabajadores = data.workers.filter(w => w.companyId === sesion.empresaId);
+      const misDocumentos = data.docs.filter(d => misTrabajadores.some(t => t.id === d.workerId));
+      
+      const autorizados = misTrabajadores.filter(w => checkAccess(w) === 'Autorizado');
+      const noAutorizados = misTrabajadores.filter(w => checkAccess(w) === 'No autorizado');
+      const vencidos = misDocumentos.filter(d => getStatus(d) === 'Vencido');
+      
+      const nombreEmpresa = getCompanyName(sesion.empresaId);
+      
+      container.innerHTML = `
+        <div style="margin-bottom: 20px;">
+          <h3 style="color: var(--primary-green); font-size: 18px;">Panel de control: ${nombreEmpresa}</h3>
+        </div>
+
+        <div class="stats" style="margin-bottom: 30px;">
+          <div class="stat" style="cursor:pointer;" onclick="switchTab('trabajadores')">
+            <span style="font-size: 30px;">👷</span>
+            <strong>${misTrabajadores.length}</strong>
+            <small>Mis Trabajadores</small>
+          </div>
+          <div class="stat" style="cursor:pointer;" onclick="switchTab('autorizaciones')">
+            <span style="font-size: 30px; color: #008b45;">🛡️</span>
+            <strong style="color: #008b45;">${autorizados.length}</strong>
+            <small>Aptos para ingreso</small>
+          </div>
+          <div class="stat" style="cursor:pointer;" onclick="switchTab('documentos')">
+            <span style="font-size: 30px; color: #e60033;">⚠️</span>
+            <strong style="color: #e60033;">${vencidos.length}</strong>
+            <small>Docs vencidos</small>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>👷 Detalle de mi Personal</h2>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Nombre</th><th>DNI</th><th>Cargo</th><th>Estado de Ingreso</th></tr></thead>
+              <tbody>
+                ${misTrabajadores.length === 0 ? '<tr><td colspan="4">No hay trabajadores registrados.</td></tr>' : ''}
+                ${misTrabajadores.map(w => {
+                  const isAuth = checkAccess(w) === 'Autorizado';
+                  return `<tr>
+                    <td>${w.name}</td>
+                    <td>${w.dni}</td>
+                    <td>${w.role}</td>
+                    <td><span class="pill ${isAuth ? 'success' : 'danger'}">${isAuth ? 'Autorizado' : 'No autorizado'}</span></td>
+                  </tr>`;
+                }).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>⚠️ Mis Documentos Vencidos</h2>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Trabajador</th><th>Tipo de Documento</th><th>Fecha de Vencimiento</th></tr></thead>
+              <tbody>
+                ${vencidos.length === 0 ? '<tr><td colspan="3">¡Buenas noticias! No tienes documentos vencidos.</td></tr>' : ''}
+                ${vencidos.map(d => `
+                  <tr>
+                    <td>${getWorkerName(d.workerId)}</td>
+                    <td><strong>${d.type}</strong></td>
+                    <td><span style="color: #e60033; font-weight: bold;">${d.expiry}</span></td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>🚫 Personal No Autorizado</h2>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Trabajador</th><th>Documentos Faltantes</th></tr></thead>
+              <tbody>
+                ${noAutorizados.length === 0 ? '<tr><td colspan="2">Todo tu personal está autorizado.</td></tr>' : ''}
+                ${noAutorizados.map(w => {
+                  const records = misDocumentos.filter(d => d.workerId === w.id);
+                  const faltantes = REQUISITOS_OBLIGATORIOS.filter(req => 
+                    !records.some(d => d.type === req && getStatus(d) === 'Aprobado')
+                  );
+                  return `<tr>
+                    <td>${w.name}</td>
+                    <td>
+                      ${faltantes.length > 0 ? faltantes.map(f => `<span class="pill warning" style="margin-right: 5px;">Falta: ${f}</span>`).join('') : 'Documentos en revisión'}
+                    </td>
+                  </tr>`;
+                }).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    }
   }
 
-  // --- EMPRESAS ---
+  // --- EMPRESAS (Solo admin) ---
   if (tab === 'empresas') {
     container.innerHTML = `
       <div class="card">
@@ -162,8 +324,11 @@ function renderTab(tab) {
     });
   }
 
-  // --- TRABAJADORES ---
+  // --- TRABAJADORES (Filtrado según rol) ---
   if (tab === 'trabajadores') {
+    const misTrabajadores = sesion.rol === 'admin' ? data.workers : data.workers.filter(w => w.companyId === sesion.empresaId);
+    const misEmpresas = sesion.rol === 'admin' ? data.companies : data.companies.filter(c => c.id === sesion.empresaId);
+
     container.innerHTML = `
       <div class="card">
         <h2>Registrar trabajador</h2>
@@ -173,7 +338,7 @@ function renderTab(tab) {
           <label>Empresa
             <select id="trab-empresa" required>
               <option value="">Selecciona una empresa</option>
-              ${data.companies.map(c => `<option value="${c.id}">${c.name}</option>`).join('')}
+              ${misEmpresas.map(c => `<option value="${c.id}">${c.name}</option>`).join('')}
             </select>
           </label>
           <label>Cargo<input type="text" id="trab-role" required /></label>
@@ -186,8 +351,8 @@ function renderTab(tab) {
           <table>
             <thead><tr><th>Nombre</th><th>DNI</th><th>Empresa</th><th>Cargo</th></tr></thead>
             <tbody>
-              ${data.workers.length === 0 ? '<tr><td colspan="4">No hay trabajadores registrados.</td></tr>' : ''}
-              ${data.workers.map(w => `<tr><td>${w.name}</td><td>${w.dni}</td><td>${getCompanyName(w.companyId)}</td><td>${w.role}</td></tr>`).join('')}
+              ${misTrabajadores.length === 0 ? '<tr><td colspan="4">No hay trabajadores registrados.</td></tr>' : ''}
+              ${misTrabajadores.map(w => `<tr><td>${w.name}</td><td>${w.dni}</td><td>${getCompanyName(w.companyId)}</td><td>${w.role}</td></tr>`).join('')}
             </tbody>
           </table>
         </div>
@@ -216,8 +381,11 @@ function renderTab(tab) {
     });
   }
 
-  // --- DOCUMENTOS ---
+  // --- DOCUMENTOS (Filtrado según rol) ---
   if (tab === 'documentos') {
+    const misTrabajadores = sesion.rol === 'admin' ? data.workers : data.workers.filter(w => w.companyId === sesion.empresaId);
+    const misDocumentos = sesion.rol === 'admin' ? data.docs : data.docs.filter(d => misTrabajadores.some(t => t.id === d.workerId));
+
     container.innerHTML = `
       <div class="card">
         <h2>Registrar documento SST</h2>
@@ -225,15 +393,14 @@ function renderTab(tab) {
           <label>Trabajador
             <select id="doc-trabajador" required>
               <option value="">Selecciona trabajador</option>
-              ${data.workers.map(w => `<option value="${w.id}">${w.name}</option>`).join('')}
+              ${misTrabajadores.map(w => `<option value="${w.id}">${w.name}</option>`).join('')}
             </select>
           </label>
           <label>Tipo de documento
             <select id="doc-tipo" required>
-              <option value="SCTR">SCTR</option>
-              <option value="Inducción SST">Inducción SST</option>
-              <option value="Examen médico ocupacional">Examen médico ocupacional</option>
+              ${REQUISITOS_OBLIGATORIOS.map(r => `<option value="${r}">${r}</option>`).join('')}
               <option value="Capacitación SST">Capacitación SST</option>
+              <option value="Entrega de EPP">Entrega de EPP</option>
             </select>
           </label>
           <label>Fecha de vencimiento<input type="date" id="doc-vencimiento" required /></label>
@@ -247,8 +414,8 @@ function renderTab(tab) {
           <table>
             <thead><tr><th>Trabajador</th><th>Tipo / Archivo</th><th>Vence</th><th>Estado</th></tr></thead>
             <tbody>
-              ${data.docs.length === 0 ? '<tr><td colspan="4">No hay documentos registrados.</td></tr>' : ''}
-              ${data.docs.map(d => `
+              ${misDocumentos.length === 0 ? '<tr><td colspan="4">No hay documentos registrados.</td></tr>' : ''}
+              ${misDocumentos.map(d => `
                 <tr>
                   <td>${getWorkerName(d.workerId)}</td>
                   <td><strong>${d.type}</strong><br><small>${d.fileName || 'Sin archivo'}</small></td>
@@ -273,26 +440,18 @@ function renderTab(tab) {
       btn.textContent = 'Subiendo archivo...'; btn.disabled = true;
 
       try {
-        // 1. Subir archivo a Supabase Storage
         const fileExt = file.name.split('.').pop();
         const fileName = `${Date.now()}.${fileExt}`;
-        const { error: uploadError } = await supabaseClient.storage
-          .from('documentos-sst')
-          .upload(fileName, file);
-
+        const { error: uploadError } = await supabaseClient.storage.from('documentos-sst').upload(fileName, file);
         if (uploadError) throw uploadError;
 
-        // 2. Obtener URL pública del archivo
-        const { data: urlData } = supabaseClient.storage
-          .from('documentos-sst')
-          .getPublicUrl(fileName);
+        const { data: urlData } = supabaseClient.storage.from('documentos-sst').getPublicUrl(fileName);
 
-        // 3. Guardar registro en la tabla 'documentos'
         const { error: dbError } = await supabaseClient.from('documentos').insert([{
           trabajador_id: document.getElementById('doc-trabajador').value,
           tipo: document.getElementById('doc-tipo').value,
           vencimiento: document.getElementById('doc-vencimiento').value,
-          estado: 'Pendiente', // Por defecto
+          estado: 'Pendiente', 
           archivo_nombre: file.name,
           archivo_url: urlData.publicUrl
         }]);
@@ -311,16 +470,20 @@ function renderTab(tab) {
     });
   }
 
-  // --- AUTORIZACIONES ---
+  // --- AUTORIZACIONES (Filtrado según rol) ---
   if (tab === 'autorizaciones') {
+    const misTrabajadores = sesion.rol === 'admin' ? data.workers : data.workers.filter(w => w.companyId === sesion.empresaId);
+
     container.innerHTML = `
       <div class="card">
         <h2>Verificación de ingreso</h2>
+        <p>Para mostrar «Autorizado», el trabajador debe tener todos los requisitos obligatorios aprobados y vigentes.</p>
         <div class="table-wrap">
           <table>
             <thead><tr><th>Trabajador</th><th>Empresa</th><th>Requisitos</th><th>Estado</th></tr></thead>
             <tbody>
-              ${data.workers.map(w => {
+              ${misTrabajadores.length === 0 ? '<tr><td colspan="4">No hay trabajadores registrados.</td></tr>' : ''}
+              ${misTrabajadores.map(w => {
                 const records = data.docs.filter(d => d.workerId === w.id);
                 const reqsHtml = REQUISITOS_OBLIGATORIOS.map(type => {
                   const hasIt = records.some(d => d.type === type && getStatus(d) === 'Aprobado');

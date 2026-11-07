@@ -77,11 +77,12 @@ button { cursor: pointer; font-family: inherit; }
 .date { color: #70847a; font-size: 12px; }
 
 /* --- COMPONENTES --- */
-.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin-bottom: 24px; }
-.stat { background: white; border: 1px solid var(--border-color); border-radius: 14px; padding: 20px; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 24px; }
+.stat { background: white; border: 1px solid var(--border-color); border-radius: 14px; padding: 20px; transition: all 0.3s ease; }
+.stat:hover { transform: translateY(-5px); box-shadow: 0 8px 20px rgba(0, 100, 55, 0.15); border-color: var(--primary-green); }
 .stat span { display: block; color: var(--primary-green); font-size: 23px; }
-.stat strong { display: block; font-size: 31px; margin-top: 8px; }
-.stat small { color: #72857c; font-weight: 600; }
+.stat strong { display: block; font-size: 36px; margin: 10px 0 5px 0; color: var(--dark-green); }
+.stat small { display: block; color: #72857c; font-size: 13px; font-weight: 600; line-height: 1.2; }
 
 .card { background: white; border: 1px solid var(--border-color); border-radius: 14px; padding: 24px; margin-bottom: 22px; }
 .card h2 { font-size: 19px; color: var(--dark-green); margin: 0 0 12px; }
@@ -103,9 +104,8 @@ td { border-top: 1px solid #e9f0eb; padding: 13px 12px; vertical-align: middle; 
 .pill.danger { background: #ffe5ea; color: #c40030; }
 
 .notice { background: #e5f7ed; color: #176845; padding: 14px 16px; border: 1px solid #bce5cc; border-radius: 10px; margin-bottom: 22px; }
-.reset { background: transparent; border: 0; text-decoration: underline; color: var(--primary-red); padding: 0 5px; font-size: 12px; }
-button.outline { background: #fce8ed !important; color: #b8002b !important; }
-footer { color: #7c8e84; font-size: 12px; margin-top: 30px; }
+.reset { background: transparent; border: 0; text-decoration: underline; color: var(--primary-red); padding: 0 5px; font-size: 12px; cursor: pointer;}
+footer { color: #7c8e84; font-size: 12px; margin-top: 30px; text-align: center; }
 
 @media (max-width: 768px) {
   .layout { flex-direction: column; }
