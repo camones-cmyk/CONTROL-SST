@@ -10,17 +10,17 @@
   <!-- Vista de Login -->
   <div id="login-view" class="login-page">
     <div class="login-card">
-      <img src="./assets/logo pga.png" alt="Agro Industrial Paramonga" class="login-logo" />
+      <!-- Logo en el Login -->
+      <img src="./assets/logo-paramonga.png" alt="Agro Industrial Paramonga" class="login-logo" />
       <h1>CONTROL SST</h1>
       <p>Gestión documental de contratistas</p>
       <form id="login-form">
         <label for="usuario">Usuario</label>
-        <input type="text" id="usuario" placeholder="Ingrese 'admin' o el RUC de su empresa" required />
+        <input type="text" id="usuario" placeholder="Ingrese su usuario" required />
         <label for="clave">Contraseña</label>
         <input type="password" id="clave" placeholder="Ingrese su contraseña" required />
         <button type="submit">Ingresar</button>
       </form>
-      <small>Prototipo académico · Anjhely C.</small>
     </div>
   </div>
 
@@ -28,44 +28,44 @@
   <div id="app-view" class="sst-app" style="display: none;">
     <header class="topbar">
       <div class="brand">
-        <img src="./assets/logo-paramonga.jpg" alt="Logo" class="brand-logo" />
+        <!-- Logo en la barra superior -->
+        <img src="./assets/logo-paramonga.png" alt="Logo Paramonga" class="brand-logo" />
         <div>
           <strong id="nombre-plataforma">CONTROL SST</strong>
           <small>Gestión documental de contratistas</small>
         </div>
       </div>
-      <span class="prototype">PROTOTIPO · SUPABASE</span>
     </header>
-    
+
     <div class="layout">
       <nav class="sidebar" id="sidebar">
-        <!-- Los botones del menú se generarán con JS -->
+        <!-- Los botones del menú se generan con JS -->
       </nav>
-      
+
       <main class="content">
         <div id="message-box" class="notice" style="display: none;"></div>
-        
+
         <div class="heading">
           <div>
             <span class="eyebrow">SEGURIDAD Y SALUD EN EL TRABAJO</span>
             <h1 id="page-title">Panel general</h1>
-            <p>Plataforma demostrativa de verificación y control de requisitos SST.</p>
+            <p>Plataforma de verificación y control de requisitos SST.</p>
           </div>
           <span class="date" id="current-date"></span>
         </div>
 
         <!-- Contenedor dinámico para las tablas y formularios -->
         <div id="tab-content"></div>
-        
+
         <footer>
-          Prototipo académico. Los datos se guardan en la nube. 
+          Agro Industrial Paramonga S.A. 
           <button class="reset" id="btn-reset">Cerrar Sesión</button>
         </footer>
       </main>
     </div>
   </div>
 
-  <!-- Scripts -->
+  <!-- Script de Supabase (CDN) -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="app.js"></script>
 </body>
