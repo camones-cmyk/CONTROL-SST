@@ -10,7 +10,6 @@
   <!-- Vista de Login -->
   <div id="login-view" class="login-page">
     <div class="login-card">
-      <!-- Logo en el Login -->
       <img src="./assets/logo-paramonga.png" alt="Agro Industrial Paramonga" class="login-logo" />
       <h1>CONTROL SST</h1>
       <p>Gestión documental de contratistas</p>
@@ -28,7 +27,6 @@
   <div id="app-view" class="sst-app" style="display: none;">
     <header class="topbar">
       <div class="brand">
-        <!-- Logo en la barra superior -->
         <img src="./assets/logo-paramonga.png" alt="Logo Paramonga" class="brand-logo" />
         <div>
           <strong id="nombre-plataforma">CONTROL SST</strong>
@@ -39,7 +37,7 @@
 
     <div class="layout">
       <nav class="sidebar" id="sidebar">
-        <!-- Los botones del menú se generan con JS -->
+        <!-- Menú generado por JS -->
       </nav>
 
       <main class="content">
@@ -54,7 +52,6 @@
           <span class="date" id="current-date"></span>
         </div>
 
-        <!-- Contenedor dinámico para las tablas y formularios -->
         <div id="tab-content"></div>
 
         <footer>
@@ -65,7 +62,7 @@
     </div>
   </div>
 
-  <!-- Script de Supabase (CDN) -->
+  <!-- Script de Supabase -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="app.js"></script>
 </body>
