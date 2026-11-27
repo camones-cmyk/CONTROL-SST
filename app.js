@@ -69,9 +69,6 @@ async function renderTab(tab) {
   const container = document.getElementById('tab-content');
   container.innerHTML = '<p>Cargando datos...</p>';
 
-  // ==========================================
-  // VISTA: EMPRESAS (Solo Admin)
-  // ==========================================
   if (tab === 'empresas') {
     const { data: empresas, error } = await db.from('empresas').select('*');
     if (error) return container.innerHTML = `<p>Error: ${error.message}</p>`;
@@ -83,7 +80,7 @@ async function renderTab(tab) {
         <h2>Registrar empresa contratista</h2>
         <form class="form" id="form-empresa">
           <label>Razón social<input type="text" id="empresa-nombre" required></label>
-          <label>RUC (11 dígitos - será el usuario)<input type="text" id="empresa-ruc" required></label>
+          <label>RUC (11 dígitos)<input type="text" id="empresa-ruc" required></label>
           <label>Contacto<input type="text" id="empresa-contacto" required></label>
           <label>Actividad principal
             <select id="empresa-actividad" required>
@@ -121,9 +118,6 @@ async function renderTab(tab) {
     });
   } 
   
-  // ==========================================
-  // VISTA: TRABAJADORES (Admin y Contratista)
-  // ==========================================
   else if (tab === 'trabajadores') {
     let empresas = [];
     if (sesion.rol === 'admin') {
@@ -134,7 +128,7 @@ async function renderTab(tab) {
       empresas = data;
     }
     
-    if(!empresas || empresas.length === 0) return container.innerHTML = `<p>No se encontró tu empresa. Contacta al administrador.</p>`;
+    if(!empresas || empresas.length === 0) return container.innerHTML = `<p>No se encontró tu empresa.</p>`;
 
     const opcionesEmpresas = empresas.map(e => `<option value="${e.id}">${e.nombre}</option>`).join('');
     const empActiva = empresas[0];
@@ -185,12 +179,7 @@ async function renderTab(tab) {
 
     document.getElementById('form-trabajador').addEventListener('submit', async (e) => {
       e.preventDefault();
-      
-      let empresaId = empActiva.id;
-      if (sesion.rol === 'admin') {
-        const select = document.getElementById('select-empresa');
-        if (select) empresaId = select.value;
-      }
+      let empresaId = sesion.rol === 'admin' ? document.getElementById('select-empresa').value : empActiva.id;
       
       const { error } = await db.from('trabajadores').insert([{
         empresa_id: empresaId,
@@ -199,10 +188,9 @@ async function renderTab(tab) {
         puesto: document.getElementById('trab-puesto').value
       }]);
 
-      if (error) {
-        alert('Error al guardar: ' + error.message);
-      } else {
-        alert('¡Trabajador registrado con éxito!');
+      if (error) alert('Error al guardar: ' + error.message);
+      else {
+        alert('¡Trabajador registrado!');
         document.getElementById('form-trabajador').reset();
         cargarTrabajadores(empresaId); 
       }
@@ -214,10 +202,119 @@ async function renderTab(tab) {
       });
     }
   }
-  
-  // ==========================================
-  // VISTA: REQUISITOS (Solo Admin)
-  // ==========================================
+
+  else if (tab === 'documentos') {
+    let empresas = [];
+    if (sesion.rol === 'admin') {
+      const { data } = await db.from('empresas').select('*');
+      empresas = data;
+    } else {
+      const { data } = await db.from('empresas').select('*').eq('ruc', sesion.ruc);
+      empresas = data;
+    }
+
+    if(!empresas || empresas.length === 0) return container.innerHTML = `<p>No se encontró tu empresa.</p>`;
+    
+    const empActiva = empresas[0];
+    const opcionesEmpresas = empresas.map(e => `<option value="${e.id}">${e.nombre}</option>`).join('');
+
+    container.innerHTML = `
+      <div class="card">
+        <h2>Gestión de Documentos</h2>
+        ${sesion.rol === 'admin' ? `<select id="select-empresa-doc" style="margin-bottom:15px; padding:8px;">${opcionesEmpresas}</select>` : `<p>Empresa: <strong>${empActiva.nombre}</strong></p>`}
+        <div id="lista-documentos-trabajadores"><p>Cargando...</p></div>
+      </div>
+    `;
+
+    async function cargarDocumentos(empresaId) {
+      const { data: trabajadores } = await db.from('trabajadores').select('*').eq('empresa_id', empresaId);
+      const div = document.getElementById('lista-documentos-trabajadores');
+      
+      if (!trabajadores || trabajadores.length === 0) {
+        div.innerHTML = `<p>No hay trabajadores registrados en esta empresa.</p>`;
+        return;
+      }
+
+      const { data: empresa } = await db.from('empresas').select('actividad').eq('id', empresaId).single();
+      let reqs = [];
+      if (empresa.actividad === 'Todas las actividades') {
+        const { data } = await db.from('matriz_requisitos').select('requisito');
+        reqs = [...new Set(data.map(r => r.requisito))];
+      } else {
+        const { data } = await db.from('matriz_requisitos').select('requisito').eq('actividad', empresa.actividad);
+        reqs = data.map(r => r.requisito);
+      }
+
+      let html = '';
+      for (const t of trabajadores) {
+        const { data: docsSubidos } = await db.from('documentos').select('*').eq('trabajador_id', t.id);
+        
+        html += `
+          <div style="border: 1px solid #ddd; padding: 15px; margin-bottom: 15px; border-radius: 8px;">
+            <h3 style="margin-bottom:10px; color:var(--primary-green);">Trabajador: ${t.nombre} (DNI: ${t.dni})</h3>
+            <table>
+              <thead><tr><th>Requisito</th><th>Estado</th><th>Acción</th></tr></thead>
+              <tbody>
+                ${reqs.map(req => {
+                  const doc = docsSubidos.find(d => d.requisito === req);
+                  const estado = doc ? doc.estado : 'Pendiente';
+                  const color = estado === 'Aprobado' ? 'success' : (estado === 'Pendiente' ? 'warning' : 'danger');
+                  
+                  return `
+                    <tr>
+                      <td>${req}</td>
+                      <td><span class="pill ${color}">${estado}</span></td>
+                      <td>
+                        ${doc && doc.archivo_url ? `<a href="${doc.archivo_url}" target="_blank" style="font-size:12px; color:blue;">Ver Archivo</a>` : ''}
+                        <input type="file" id="file-${t.id}-${req.replace(/\\s/g, '')}" style="display:none;" onchange="subirArchivo(event, ${t.id}, '${req}')">
+                        <button onclick="document.getElementById('file-${t.id}-${req.replace(/\\s/g, '')}').click()" style="padding:5px 10px; background:#eee; border:none; border-radius:5px; cursor:pointer; font-size:12px;">Subir</button>
+                      </td>
+                    </tr>
+                  `;
+                }).join('')}
+              </tbody>
+            </table>
+          </div>
+        `;
+      }
+      div.innerHTML = html;
+    }
+
+    cargarDocumentos(empActiva.id);
+    if(sesion.rol === 'admin') {
+      document.getElementById('select-empresa-doc').addEventListener('change', (e) => cargarDocumentos(e.target.value));
+    }
+
+    window.subirArchivo = async (event, trabajadorId, requisito) => {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${trabajadorId}-${requisito.replace(/\\s/g, '')}-${Date.now()}.${fileExt}`;
+
+      const { data, error } = await db.storage.from('documentos').upload(fileName, file);
+
+      if (error) {
+        alert('Error al subir archivo: ' + error.message);
+        return;
+      }
+
+      const { data: publicUrlData } = db.storage.from('documentos').getPublicUrl(fileName);
+      const url = publicUrlData.publicUrl;
+
+      const { data: existeDoc } = await db.from('documentos').select('id').eq('trabajador_id', trabajadorId).eq('requisito', requisito).single();
+
+      if (existeDoc) {
+        await db.from('documentos').update({ archivo_url: url, estado: 'Aprobado' }).eq('id', existeDoc.id);
+      } else {
+        await db.from('documentos').insert([{ trabajador_id: trabajadorId, requisito: requisito, archivo_url: url, estado: 'Aprobado' }]);
+      }
+
+      alert('Archivo subido con éxito');
+      renderTab('documentos');
+    };
+  }
+
   else if (tab === 'requisitos') {
     const { data: reqs } = await db.from('matriz_requisitos').select('*');
     let thead = `<tr><th>Requisitos de SST</th>${ACTIVIDADES.filter(a => a !== 'Todas las actividades').map(a => `<th>${a}</th>`).join('')}</tr>`;
