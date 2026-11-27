@@ -15,10 +15,10 @@ document.addEventListener('DOMContentLoaded', () => {
     
     if (user.toLowerCase() === 'admin') {
       sesion = { rol: 'admin', ruc: null };
-      iniciarApp('empresas'); // El admin inicia directo en Empresas
+      iniciarApp('empresas');
     } else {
       sesion = { rol: 'contratista', ruc: user };
-      iniciarApp('trabajadores'); // La contrata inicia directo en Trabajadores
+      iniciarApp('trabajadores');
     }
   });
 
@@ -43,7 +43,6 @@ function renderSidebar() {
     ['configuracion', '⚙️', 'Configuración']
   ];
 
-  // Filtramos las opciones: Las contratas no ven Empresas, Requisitos ni Configuración
   nav.innerHTML = tabs
     .filter(([id]) => {
       if (sesion.rol === 'admin') return true;
@@ -60,20 +59,8 @@ window.switchTab = (tab) => {
 };
 
 const ACTIVIDADES = [
-  'Todas las actividades', 
-  'Mantenimiento mecánico', 'Trabajo en altura', 'Trabajo en caliente', 
+  'Todas las actividades', 'Mantenimiento mecánico', 'Trabajo en altura', 'Trabajo en caliente', 
   'Trabajo eléctrico', 'Espacios confinados', 'Limpieza industrial', 'Izaje de cargas'
-];
-
-const TODOS_LOS_REQUISITOS = [
-  "DNI del trabajador",
-  "Seguro Complementario de Trabajo de Riesgo (SCTR)",
-  "IPERC",
-  "Registro de entrega de equipos de protección personal (EPP)",
-  "Certificado del prevencionista",
-  "Certificados de capacitación para trabajos de alto riesgo",
-  "Inducción de Seguridad y Salud en el Trabajo (SST)",
-  "Examen médico ocupacional (EMO)"
 ];
 
 async function renderTab(tab) {
@@ -82,16 +69,9 @@ async function renderTab(tab) {
   const container = document.getElementById('tab-content');
   container.innerHTML = '<p>Cargando datos...</p>';
 
-  // ==========================================
-  // VISTA: EMPRESAS (Solo para el admin)
-  // ==========================================
   if (tab === 'empresas') {
     const { data: empresas, error } = await db.from('empresas').select('*');
-    
-    if (error) {
-      container.innerHTML = `<p>Error al cargar: ${error.message}</p>`;
-      return;
-    }
+    if (error) return container.innerHTML = `<p>Error: ${error.message}</p>`;
 
     const opcionesActividades = ACTIVIDADES.map(act => `<option value="${act}">${act}</option>`).join('');
 
@@ -127,29 +107,19 @@ async function renderTab(tab) {
 
     document.getElementById('form-empresa').addEventListener('submit', async (e) => {
       e.preventDefault();
-      const nuevaEmpresa = {
+      const { error } = await db.from('empresas').insert([{
         nombre: document.getElementById('empresa-nombre').value,
         ruc: document.getElementById('empresa-ruc').value,
         contacto: document.getElementById('empresa-contacto').value,
         actividad: document.getElementById('empresa-actividad').value
-      };
-      
-      const { error } = await db.from('empresas').insert([nuevaEmpresa]);
-      if (error) {
-        alert('Error al guardar: ' + error.message);
-      } else {
-        alert('Empresa guardada con éxito. Ya puede entrar con su RUC.');
-        renderTab('empresas');
-      }
+      }]);
+      if (error) alert('Error: ' + error.message);
+      else { alert('Empresa guardada'); renderTab('empresas'); }
     });
   } 
-  // ==========================================
-  // VISTA: TRABAJADORES (Aquí la contrata registra a su gente)
-  // ==========================================
+  
   else if (tab === 'trabajadores') {
     let empresas = [];
-
-    // Si es admin, ve todas para elegir. Si es contrata, solo ve la suya.
     if (sesion.rol === 'admin') {
       const { data } = await db.from('empresas').select('*');
       empresas = data;
@@ -158,107 +128,102 @@ async function renderTab(tab) {
       empresas = data;
     }
     
-    if(!empresas || empresas.length === 0) {
-      container.innerHTML = `<div class="card"><p>No se encontró tu empresa asociada a este RUC. Contacta al administrador.</p></div>`;
-      return;
-    }
+    if(!empresas || empresas.length === 0) return container.innerHTML = `<p>No se encontró tu empresa. Contacta al administrador.</p>`;
 
-    const opcionesEmpresas = empresas.map(e => `<option value="${e.id}">${e.nombre} (${e.actividad})</option>`).join('');
-    
+    const opcionesEmpresas = empresas.map(e => `<option value="${e.id}">${e.nombre}</option>`).join('');
+    const empActiva = empresas[0];
+
     container.innerHTML = `
       <div class="card">
-        <h2>Gestión de Trabajadores y Requisitos</h2>
+        <h2>Gestión de Trabajadores</h2>
+        ${sesion.rol === 'admin' ? `<label>Seleccionar Empresa: <select id="select-empresa" style="margin-bottom:15px; padding:8px;">${opcionesEmpresas}</select></label>` : `<p>Empresa: <strong>${empActiva.nombre}</strong></p>`}
         
-        ${sesion.rol === 'admin' ? `
-          <label style="display:block; margin-bottom:15px;">Seleccionar Empresa (Vista Admin)
-            <select id="select-empresa" style="width:100%; padding:10px; border-radius:8px; border:1px solid #ccc;">
-              ${opcionesEmpresas}
-            </select>
-          </label>
-        ` : `
-          <p style="margin-bottom:20px;">Bienvenido. Estás gestionando los documentos de: <strong>${empresas[0].nombre}</strong></p>
-        `}
-        
-        <div id="lista-reqs-container"></div>
+        <div style="margin-top:20px; padding:15px; background:#f9f9f9; border-radius:8px; border: 1px solid #ddd;">
+          <h3>Registrar nuevo trabajador</h3>
+          <form class="form" id="form-trabajador" style="margin-top:10px;">
+            <label>Nombre completo<input type="text" id="trab-nombre" required></label>
+            <label>DNI<input type="text" id="trab-dni" required></label>
+            <label>Puesto<input type="text" id="trab-puesto" required></label>
+            <button type="submit">Guardar Trabajador</button>
+          </form>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:20px;">
+        <h2>Lista de Trabajadores</h2>
+        <div id="lista-trabajadores"><p>Cargando...</p></div>
       </div>
     `;
 
-    async function cargarRequisitosDeEmpresa(empresaId) {
-      const emp = empresas.find(e => e.id == empresaId);
-      const div = document.getElementById('lista-reqs-container');
-      div.innerHTML = '<p>Cargando requisitos...</p>';
-
-      let listaRequisitos = '';
-
-      if (emp.actividad === 'Todas las actividades') {
-        listaRequisitos = TODOS_LOS_REQUISITOS.map(req => `<li>${req}</li>`).join('');
+    async function cargarTrabajadores(empresaId) {
+      const { data: trabajadores, error } = await db.from('trabajadores').select('*').eq('empresa_id', empresaId);
+      const div = document.getElementById('lista-trabajadores');
+      
+      if (error) return div.innerHTML = `<p>Error: ${error.message}</p>`;
+      
+      if (trabajadores.length === 0) {
+        div.innerHTML = `<p>No hay trabajadores registrados aún.</p>`;
       } else {
-        const { data: reqs } = await db.from('matriz_requisitos').select('requisito').eq('actividad', emp.actividad);
-        listaRequisitos = reqs && reqs.length > 0 
-          ? reqs.map(r => `<li>${r.requisito}</li>`).join('') 
-          : '<li>No hay requisitos definidos para esta actividad.</li>';
+        div.innerHTML = `
+          <table>
+            <thead><tr><th>Nombre</th><th>DNI</th><th>Puesto</th></tr></thead>
+            <tbody>
+              ${trabajadores.map(t => `<tr><td>${t.nombre}</td><td>${t.dni}</td><td>${t.puesto}</td></tr>`).join('')}
+            </tbody>
+          </table>
+        `;
       }
-
-      div.innerHTML = `
-        <div style="background:#f2f8f4; padding:15px; border-radius:8px; margin-bottom:20px;">
-          <h3>Documentos exigidos para tu actividad:</h3>
-          <ul style="margin-top:10px; margin-left:20px; line-height:1.8;">
-            ${listaRequisitos}
-          </ul>
-        </div>
-        
-        <div style="border-top: 1px solid #ddd; padding-top: 20px;">
-          <h3>Registrar nuevo trabajador</h3>
-          <p style="font-size:13px; color:#666; margin-bottom:10px;">(Aquí irá el formulario para ingresar al trabajador y subir sus PDFs)</p>
-          <button style="padding:10px 15px; background:var(--primary-green); color:white; border:none; border-radius:5px; cursor:pointer;">+ Agregar Trabajador</button>
-        </div>
-      `;
     }
 
-    cargarRequisitosDeEmpresa(empresas[0].id);
+    cargarTrabajadores(empActiva.id);
+
+    document.getElementById('form-trabajador').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      let empresaId = empActiva.id;
+      if (sesion.rol === 'admin') {
+        const select = document.getElementById('select-empresa');
+        if (select) empresaId = select.value;
+      }
+      
+      const { error } = await db.from('trabajadores').insert([{
+        empresa_id: empresaId,
+        nombre: document.getElementById('trab-nombre').value,
+        dni: document.getElementById('trab-dni').value,
+        puesto: document.getElementById('trab-puesto').value
+      }]);
+
+      if (error) {
+        alert('Error al guardar: ' + error.message);
+      } else {
+        alert('¡Trabajador registrado con éxito!');
+        document.getElementById('form-trabajador').reset();
+        cargarTrabajadores(empresaId); 
+      }
+    });
 
     if (sesion.rol === 'admin') {
       document.getElementById('select-empresa').addEventListener('change', (e) => {
-        cargarRequisitosDeEmpresa(e.target.value);
+        cargarTrabajadores(e.target.value);
       });
     }
   }
-  // ==========================================
-  // VISTA: REQUISITOS (Matriz - Solo Admin)
-  // ==========================================
+  
   else if (tab === 'requisitos') {
-    const { data: reqs, error } = await db.from('matriz_requisitos').select('*');
-    
-    if (error) {
-      container.innerHTML = `<p>Error al cargar la matriz: ${error.message}</p>`;
-      return;
-    }
-
-    const columnasMatriz = ACTIVIDADES.filter(a => a !== 'Todas las actividades');
-    let thead = `<tr><th>Requisitos de SST</th>${columnasMatriz.map(a => `<th>${a}</th>`).join('')}</tr>`;
-    
-    let tbody = TODOS_LOS_REQUISITOS.map(reqName => {
+    const { data: reqs } = await db.from('matriz_requisitos').select('*');
+    let thead = `<tr><th>Requisitos de SST</th>${ACTIVIDADES.filter(a => a !== 'Todas las actividades').map(a => `<th>${a}</th>`).join('')}</tr>`;
+    let tbody = [...new Set(reqs.map(r => r.requisito))].map(reqName => {
       let row = `<tr><td>${reqName}</td>`;
-      columnasMatriz.forEach(act => {
+      ACTIVIDADES.filter(a => a !== 'Todas las actividades').forEach(act => {
         const aplica = reqs.some(r => r.requisito === reqName && r.actividad === act);
-        row += `<td style="text-align:center;">${aplica ? '<span class="pill success">X</span>' : '<span style="color:#ccc;">-</span>'}</td>`;
+        row += `<td style="text-align:center;">${aplica ? '<span class="pill success">X</span>' : '-'}</td>`;
       });
-      row += `</tr>`;
-      return row;
+      return row + `</tr>`;
     }).join('');
 
-    container.innerHTML = `
-      <div class="card">
-        <h2>Matriz de Requisitos por Actividad</h2>
-        <div class="table-wrap" style="margin-top:20px;">
-          <table>
-            <thead>${thead}</thead>
-            <tbody>${tbody}</tbody>
-          </table>
-        </div>
-      </div>
-    `;
+    container.innerHTML = `<div class="card"><h2>Matriz de Requisitos</h2><table><thead>${thead}</thead><tbody>${tbody}</tbody></table></div>`;
   }
+  
   else if (tab === 'panel') {
      container.innerHTML = `<div class="card"><h2>Bienvenido al Panel de Control</h2><p>Selecciona una opción del menú izquierdo para gestionar la información.</p></div>`;
   } else {
