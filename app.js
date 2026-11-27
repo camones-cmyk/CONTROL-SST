@@ -1,7 +1,6 @@
 const SUPABASE_URL = 'https://xyfpczgklaaszuvaqvoa.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_cZB78KSsrmef0DfHREkTlA_kiaTPB9h';
-// Aquí está el cambio: lo llamamos supabaseClient
-const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY); 
+const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 let sesion = null;
 let currentTab = 'panel';
@@ -47,6 +46,7 @@ window.switchTab = (tab) => {
 };
 
 const ACTIVIDADES = [
+  'Todas las actividades', 
   'Mantenimiento mecánico', 'Trabajo en altura', 'Trabajo en caliente', 
   'Trabajo eléctrico', 'Espacios confinados', 'Limpieza industrial', 'Izaje de cargas'
 ];
@@ -58,8 +58,7 @@ async function renderTab(tab) {
   container.innerHTML = '<p>Cargando datos...</p>';
 
   if (tab === 'empresas') {
-    // Usamos supabaseClient aquí:
-    const { data: empresas, error } = await supabaseClient.from('empresas').select('*');
+    const { data: empresas, error } = await db.from('empresas').select('*');
     
     if (error) {
       container.innerHTML = `<p>Error al cargar: ${error.message}</p>`;
@@ -107,8 +106,7 @@ async function renderTab(tab) {
         actividad: document.getElementById('empresa-actividad').value
       };
       
-      // Usamos supabaseClient aquí también:
-      const { error } = await supabaseClient.from('empresas').insert([nuevaEmpresa]);
+      const { error } = await db.from('empresas').insert([nuevaEmpresa]);
       if (error) {
         alert('Error al guardar: ' + error.message);
       } else {
@@ -118,19 +116,32 @@ async function renderTab(tab) {
     });
   } 
   else if (tab === 'trabajadores') {
-    const { data: empresas } = await supabaseClient.from('empresas').select('*');
+    const { data: empresas } = await db.from('empresas').select('*');
     
     if(!empresas || empresas.length === 0) {
       container.innerHTML = `<div class="card"><p>Primero debes registrar una empresa para poder ver sus requisitos.</p></div>`;
       return;
     }
 
+    // Por ahora tomamos la primera empresa para el ejemplo visual
     const emp = empresas[0];
-    const { data: reqs } = await supabaseClient.from('matriz_requisitos').select('requisito').eq('actividad', emp.actividad);
     
-    const listaRequisitos = reqs && reqs.length > 0 
-      ? reqs.map(r => `<li>${r.requisito}</li>`).join('') 
-      : '<li>No hay requisitos definidos para esta actividad.</li>';
+    let listaRequisitos = '';
+
+    if (emp.actividad === 'Todas las actividades') {
+      // Si es "Todas", sacamos todos los requisitos de la base de datos sin filtro
+      const { data: todosReqs } = await db.from('matriz_requisitos').select('requisito');
+      // Quitamos los duplicados usando Set
+      const reqsUnicos = [...new Set(todosReqs.map(r => r.requisito))];
+      
+      listaRequisitos = reqsUnicos.map(req => `<li>${req}</li>`).join('');
+    } else {
+      // Si es una actividad específica, filtramos
+      const { data: reqs } = await db.from('matriz_requisitos').select('requisito').eq('actividad', emp.actividad);
+      listaRequisitos = reqs && reqs.length > 0 
+        ? reqs.map(r => `<li>${r.requisito}</li>`).join('') 
+        : '<li>No hay requisitos definidos para esta actividad.</li>';
+    }
 
     container.innerHTML = `
       <div class="card">
@@ -141,6 +152,45 @@ async function renderTab(tab) {
           <ul style="margin-top:10px; margin-left:20px; line-height:1.8;">
             ${listaRequisitos}
           </ul>
+        </div>
+      </div>
+    `;
+  }
+  else if (tab === 'requisitos') {
+    const { data: reqs, error } = await db.from('matriz_requisitos').select('*');
+    
+    if (error) {
+      container.innerHTML = `<p>Error al cargar la matriz: ${error.message}</p>`;
+      return;
+    }
+
+    const requisitosUnicos = [...new Set(reqs.map(r => r.requisito))];
+    
+    // Quitamos "Todas las actividades" de las columnas de la matriz visual para no hacerla gigante,
+    // ya que la columna "Todas" incluiría todo y no aporta a la visualización cruzada.
+    const columnasMatriz = ACTIVIDADES.filter(a => a !== 'Todas las actividades');
+
+    let thead = `<tr><th>Requisitos de SST</th>${columnasMatriz.map(a => `<th>${a}</th>`).join('')}</tr>`;
+    
+    let tbody = requisitosUnicos.map(reqName => {
+      let row = `<tr><td>${reqName}</td>`;
+      columnasMatriz.forEach(act => {
+        const aplica = reqs.some(r => r.requisito === reqName && r.actividad === act);
+        row += `<td style="text-align:center;">${aplica ? '<span class="pill success">X</span>' : '<span style="color:#ccc;">-</span>'}</td>`;
+      });
+      row += `</tr>`;
+      return row;
+    }).join('');
+
+    container.innerHTML = `
+      <div class="card">
+        <h2>Matriz de Requisitos por Actividad</h2>
+        <p>Esta matriz muestra los documentos exigidos según el tipo de trabajo del contratista.</p>
+        <div class="table-wrap" style="margin-top:20px;">
+          <table>
+            <thead>${thead}</thead>
+            <tbody>${tbody}</tbody>
+          </table>
         </div>
       </div>
     `;
