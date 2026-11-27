@@ -69,6 +69,9 @@ async function renderTab(tab) {
   const container = document.getElementById('tab-content');
   container.innerHTML = '<p>Cargando datos...</p>';
 
+  // ==========================================
+  // VISTA: EMPRESAS (Solo Admin)
+  // ==========================================
   if (tab === 'empresas') {
     const { data: empresas, error } = await db.from('empresas').select('*');
     if (error) return container.innerHTML = `<p>Error: ${error.message}</p>`;
@@ -118,6 +121,9 @@ async function renderTab(tab) {
     });
   } 
   
+  // ==========================================
+  // VISTA: TRABAJADORES (Admin y Contratista)
+  // ==========================================
   else if (tab === 'trabajadores') {
     let empresas = [];
     if (sesion.rol === 'admin') {
@@ -209,6 +215,9 @@ async function renderTab(tab) {
     }
   }
   
+  // ==========================================
+  // VISTA: REQUISITOS (Solo Admin)
+  // ==========================================
   else if (tab === 'requisitos') {
     const { data: reqs } = await db.from('matriz_requisitos').select('*');
     let thead = `<tr><th>Requisitos de SST</th>${ACTIVIDADES.filter(a => a !== 'Todas las actividades').map(a => `<th>${a}</th>`).join('')}</tr>`;
@@ -221,7 +230,7 @@ async function renderTab(tab) {
       return row + `</tr>`;
     }).join('');
 
-    container.innerHTML = `<div class="card"><h2>Matriz de Requisitos</h2><table><thead>${thead}</thead><tbody>${tbody}</tbody></table></div>`;
+    container.innerHTML = `<div class="card"><h2>Matriz de Requisitos</h2><div class="table-wrap"><table><thead>${thead}</thead><tbody>${tbody}</tbody></table></div></div>`;
   }
   
   else if (tab === 'panel') {
