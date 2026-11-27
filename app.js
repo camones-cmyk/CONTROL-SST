@@ -51,6 +51,18 @@ const ACTIVIDADES = [
   'Trabajo eléctrico', 'Espacios confinados', 'Limpieza industrial', 'Izaje de cargas'
 ];
 
+// Lista exacta de tus 8 requisitos (para armar la matriz perfecta)
+const TODOS_LOS_REQUISITOS = [
+  "DNI del trabajador",
+  "Seguro Complementario de Trabajo de Riesgo (SCTR)",
+  "IPERC",
+  "Registro de entrega de equipos de protección personal (EPP)",
+  "Certificado del prevencionista",
+  "Certificados de capacitación para trabajos de alto riesgo",
+  "Inducción de Seguridad y Salud en el Trabajo (SST)",
+  "Examen médico ocupacional (EMO)"
+];
+
 async function renderTab(tab) {
   const titles = { panel: 'Panel general', empresas: 'Empresas contratistas', trabajadores: 'Trabajadores', documentos: 'Documentos SST', autorizaciones: 'Autorización de ingreso', requisitos: 'Requisitos SST', configuracion: 'Configuración' };
   document.getElementById('page-title').textContent = titles[tab] || 'Panel';
@@ -123,38 +135,53 @@ async function renderTab(tab) {
       return;
     }
 
-    // Por ahora tomamos la primera empresa para el ejemplo visual
-    const emp = empresas[0];
+    // Permitimos elegir qué empresa ver mediante un pequeño selector
+    const opcionesEmpresas = empresas.map(e => `<option value="${e.id}">${e.nombre} (${e.actividad})</option>`).join('');
     
-    let listaRequisitos = '';
-
-    if (emp.actividad === 'Todas las actividades') {
-      // Si es "Todas", sacamos todos los requisitos de la base de datos sin filtro
-      const { data: todosReqs } = await db.from('matriz_requisitos').select('requisito');
-      // Quitamos los duplicados usando Set
-      const reqsUnicos = [...new Set(todosReqs.map(r => r.requisito))];
-      
-      listaRequisitos = reqsUnicos.map(req => `<li>${req}</li>`).join('');
-    } else {
-      // Si es una actividad específica, filtramos
-      const { data: reqs } = await db.from('matriz_requisitos').select('requisito').eq('actividad', emp.actividad);
-      listaRequisitos = reqs && reqs.length > 0 
-        ? reqs.map(r => `<li>${r.requisito}</li>`).join('') 
-        : '<li>No hay requisitos definidos para esta actividad.</li>';
-    }
-
     container.innerHTML = `
       <div class="card">
-        <h2>Requisitos para: ${emp.nombre}</h2>
-        <p>Basado en su actividad: <strong>${emp.actividad || 'Sin actividad'}</strong></p>
+        <h2>Seleccionar Empresa para ver requisitos</h2>
+        <select id="select-empresa" style="width:100%; padding:10px; border-radius:8px; border:1px solid #ccc; margin-bottom:15px;">
+          ${opcionesEmpresas}
+        </select>
+        <div id="lista-reqs-container"></div>
+      </div>
+    `;
+
+    async function cargarRequisitosDeEmpresa(empresaId) {
+      const emp = empresas.find(e => e.id == empresaId);
+      const div = document.getElementById('lista-reqs-container');
+      div.innerHTML = '<p>Cargando requisitos...</p>';
+
+      let listaRequisitos = '';
+
+      if (emp.actividad === 'Todas las actividades') {
+        listaRequisitos = TODOS_LOS_REQUISITOS.map(req => `<li>${req}</li>`).join('');
+      } else {
+        const { data: reqs } = await db.from('matriz_requisitos').select('requisito').eq('actividad', emp.actividad);
+        listaRequisitos = reqs && reqs.length > 0 
+          ? reqs.map(r => `<li>${r.requisito}</li>`).join('') 
+          : '<li>No hay requisitos definidos para esta actividad.</li>';
+      }
+
+      div.innerHTML = `
+        <p>Basado en su actividad: <strong>${emp.actividad}</strong></p>
         <div style="background:#f2f8f4; padding:15px; border-radius:8px; margin-top:15px;">
           <h3>Documentos que debe presentar el trabajador:</h3>
           <ul style="margin-top:10px; margin-left:20px; line-height:1.8;">
             ${listaRequisitos}
           </ul>
         </div>
-      </div>
-    `;
+      `;
+    }
+
+    // Cargar la primera empresa por defecto
+    cargarRequisitosDeEmpresa(empresas[0].id);
+
+    // Escuchar cambios en el selector
+    document.getElementById('select-empresa').addEventListener('change', (e) => {
+      cargarRequisitosDeEmpresa(e.target.value);
+    });
   }
   else if (tab === 'requisitos') {
     const { data: reqs, error } = await db.from('matriz_requisitos').select('*');
@@ -164,15 +191,12 @@ async function renderTab(tab) {
       return;
     }
 
-    const requisitosUnicos = [...new Set(reqs.map(r => r.requisito))];
-    
-    // Quitamos "Todas las actividades" de las columnas de la matriz visual para no hacerla gigante,
-    // ya que la columna "Todas" incluiría todo y no aporta a la visualización cruzada.
     const columnasMatriz = ACTIVIDADES.filter(a => a !== 'Todas las actividades');
 
     let thead = `<tr><th>Requisitos de SST</th>${columnasMatriz.map(a => `<th>${a}</th>`).join('')}</tr>`;
     
-    let tbody = requisitosUnicos.map(reqName => {
+    // Usamos la lista fija de 8 requisitos para que siempre pinte las filas
+    let tbody = TODOS_LOS_REQUISITOS.map(reqName => {
       let row = `<tr><td>${reqName}</td>`;
       columnasMatriz.forEach(act => {
         const aplica = reqs.some(r => r.requisito === reqName && r.actividad === act);
