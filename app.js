@@ -45,6 +45,11 @@ window.switchTab = (tab) => {
   renderTab(tab);
 };
 
+const ACTIVIDADES = [
+  'Mantenimiento mecánico', 'Trabajo en altura', 'Trabajo en caliente', 
+  'Trabajo eléctrico', 'Espacios confinados', 'Limpieza industrial', 'Izaje de cargas'
+];
+
 async function renderTab(tab) {
   const titles = { panel: 'Panel general', empresas: 'Empresas contratistas', trabajadores: 'Trabajadores', documentos: 'Documentos SST', autorizaciones: 'Autorización de ingreso', requisitos: 'Requisitos SST', configuracion: 'Configuración' };
   document.getElementById('page-title').textContent = titles[tab] || 'Panel';
@@ -52,6 +57,7 @@ async function renderTab(tab) {
   container.innerHTML = '<p>Cargando datos...</p>';
 
   if (tab === 'empresas') {
+    // Cargamos las empresas
     const { data: empresas, error } = await supabase.from('empresas').select('*');
     
     if (error) {
@@ -59,24 +65,32 @@ async function renderTab(tab) {
       return;
     }
 
+    const opcionesActividades = ACTIVIDADES.map(act => `<option value="${act}">${act}</option>`).join('');
+
     container.innerHTML = `
       <div class="card">
-        <h2>Registrar empresa</h2>
+        <h2>Registrar empresa contratista</h2>
         <form class="form" id="form-empresa">
           <label>Razón social<input type="text" id="empresa-nombre" required></label>
           <label>RUC (11 dígitos)<input type="text" id="empresa-ruc" required></label>
           <label>Contacto<input type="text" id="empresa-contacto" required></label>
-          <button type="submit">Guardar</button>
+          <label>Actividad principal
+            <select id="empresa-actividad" required>
+              <option value="">Seleccione actividad...</option>
+              ${opcionesActividades}
+            </select>
+          </label>
+          <button type="submit">Guardar Empresa</button>
         </form>
       </div>
       <div class="card">
         <h2>Empresas registradas</h2>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Razón social</th><th>RUC</th><th>Contacto</th></tr></thead>
+            <thead><tr><th>Razón social</th><th>RUC</th><th>Contacto</th><th>Actividad</th></tr></thead>
             <tbody>
-              ${empresas.length === 0 ? '<tr><td colspan="3">No hay empresas registradas.</td></tr>' : 
-                empresas.map(e => `<tr><td>${e.nombre}</td><td>${e.ruc}</td><td>${e.contacto}</td></tr>`).join('')}
+              ${empresas.length === 0 ? '<tr><td colspan="4">No hay empresas registradas.</td></tr>' : 
+                empresas.map(e => `<tr><td>${e.nombre}</td><td>${e.ruc}</td><td>${e.contacto}</td><td><span class="pill success">${e.actividad || 'No asignada'}</span></td></tr>`).join('')}
             </tbody>
           </table>
         </div>
@@ -88,7 +102,8 @@ async function renderTab(tab) {
       const nuevaEmpresa = {
         nombre: document.getElementById('empresa-nombre').value,
         ruc: document.getElementById('empresa-ruc').value,
-        contacto: document.getElementById('empresa-contacto').value
+        contacto: document.getElementById('empresa-contacto').value,
+        actividad: document.getElementById('empresa-actividad').value
       };
       
       const { error } = await supabase.from('empresas').insert([nuevaEmpresa]);
@@ -96,10 +111,41 @@ async function renderTab(tab) {
         alert('Error al guardar: ' + error.message);
       } else {
         alert('Empresa guardada con éxito');
-        renderTab('empresas');
+        renderTab('empresas'); // Recargar la tabla
       }
     });
-  } else if (tab === 'panel') {
+  } 
+  else if (tab === 'trabajadores') {
+    // Aquí mostramos los requisitos según la actividad de la empresa
+    const { data: empresas } = await supabase.from('empresas').select('*');
+    
+    if(!empresas || empresas.length === 0) {
+      container.innerHTML = `<div class="card"><p>Primero debes registrar una empresa para poder ver sus requisitos.</p></div>`;
+      return;
+    }
+
+    // Tomamos la primera empresa para mostrar el ejemplo
+    const emp = empresas[0];
+    const { data: reqs } = await supabase.from('matriz_requisitos').select('requisito').eq('actividad', emp.actividad);
+    
+    const listaRequisitos = reqs && reqs.length > 0 
+      ? reqs.map(r => `<li>${r.requisito}</li>`).join('') 
+      : '<li>No hay requisitos definidos para esta actividad.</li>';
+
+    container.innerHTML = `
+      <div class="card">
+        <h2>Requisitos para: ${emp.nombre}</h2>
+        <p>Basado en su actividad: <strong>${emp.actividad || 'Sin actividad'}</strong></p>
+        <div style="background:#f2f8f4; padding:15px; border-radius:8px; margin-top:15px;">
+          <h3>Documentos que debe presentar el trabajador:</h3>
+          <ul style="margin-top:10px; margin-left:20px; line-height:1.8;">
+            ${listaRequisitos}
+          </ul>
+        </div>
+      </div>
+    `;
+  }
+  else if (tab === 'panel') {
      container.innerHTML = `<div class="card"><h2>Bienvenido al Panel de Control</h2><p>Selecciona una opción del menú izquierdo para gestionar la información.</p></div>`;
   } else {
     container.innerHTML = `<div class="card"><h2>Sección en construcción</h2><p>Esta vista estará disponible próximamente.</p></div>`;
