@@ -57,7 +57,6 @@ async function renderTab(tab) {
   container.innerHTML = '<p>Cargando datos...</p>';
 
   if (tab === 'empresas') {
-    // Cargamos las empresas
     const { data: empresas, error } = await supabase.from('empresas').select('*');
     
     if (error) {
@@ -111,12 +110,11 @@ async function renderTab(tab) {
         alert('Error al guardar: ' + error.message);
       } else {
         alert('Empresa guardada con éxito');
-        renderTab('empresas'); // Recargar la tabla
+        renderTab('empresas');
       }
     });
   } 
   else if (tab === 'trabajadores') {
-    // Aquí mostramos los requisitos según la actividad de la empresa
     const { data: empresas } = await supabase.from('empresas').select('*');
     
     if(!empresas || empresas.length === 0) {
@@ -124,7 +122,6 @@ async function renderTab(tab) {
       return;
     }
 
-    // Tomamos la primera empresa para mostrar el ejemplo
     const emp = empresas[0];
     const { data: reqs } = await supabase.from('matriz_requisitos').select('requisito').eq('actividad', emp.actividad);
     
