@@ -11,18 +11,28 @@ document.addEventListener('DOMContentLoaded', () => {
   
   document.getElementById('login-form').addEventListener('submit', (e) => {
     e.preventDefault();
-    const user = document.getElementById('usuario').value.trim().toLowerCase();
-    sesion = { rol: user === 'admin' ? 'admin' : 'contratista' };
-    document.getElementById('login-view').style.display = 'none';
-    document.getElementById('app-view').style.display = 'block';
-    renderSidebar();
-    renderTab('panel');
+    const user = document.getElementById('usuario').value.trim();
+    
+    if (user.toLowerCase() === 'admin') {
+      sesion = { rol: 'admin', ruc: null };
+      iniciarApp('empresas'); // El admin inicia directo en Empresas
+    } else {
+      sesion = { rol: 'contratista', ruc: user };
+      iniciarApp('trabajadores'); // La contrata inicia directo en Trabajadores
+    }
   });
 
   document.getElementById('btn-reset').addEventListener('click', () => {
     location.reload(); 
   });
 });
+
+function iniciarApp(tabInicial) {
+  document.getElementById('login-view').style.display = 'none';
+  document.getElementById('app-view').style.display = 'block';
+  renderSidebar();
+  renderTab(tabInicial);
+}
 
 function renderSidebar() {
   const nav = document.getElementById('sidebar');
@@ -33,8 +43,12 @@ function renderSidebar() {
     ['configuracion', '⚙️', 'Configuración']
   ];
 
+  // Filtramos las opciones: Las contratas no ven Empresas, Requisitos ni Configuración
   nav.innerHTML = tabs
-    .filter(([id]) => sesion.rol === 'admin' || (id !== 'configuracion' && id !== 'requisitos'))
+    .filter(([id]) => {
+      if (sesion.rol === 'admin') return true;
+      return id !== 'empresas' && id !== 'requisitos' && id !== 'configuracion'; 
+    })
     .map(([id, icon, label]) => `<button class="nav ${currentTab === id ? 'active' : ''}" onclick="switchTab('${id}')"><span>${icon}</span> ${label}</button>`)
     .join('') + `<div class="side-note">Agro Industrial Paramonga S.A.</div>`;
 }
@@ -51,7 +65,6 @@ const ACTIVIDADES = [
   'Trabajo eléctrico', 'Espacios confinados', 'Limpieza industrial', 'Izaje de cargas'
 ];
 
-// Lista exacta de tus 8 requisitos (para armar la matriz perfecta)
 const TODOS_LOS_REQUISITOS = [
   "DNI del trabajador",
   "Seguro Complementario de Trabajo de Riesgo (SCTR)",
@@ -69,6 +82,9 @@ async function renderTab(tab) {
   const container = document.getElementById('tab-content');
   container.innerHTML = '<p>Cargando datos...</p>';
 
+  // ==========================================
+  // VISTA: EMPRESAS (Solo para el admin)
+  // ==========================================
   if (tab === 'empresas') {
     const { data: empresas, error } = await db.from('empresas').select('*');
     
@@ -84,7 +100,7 @@ async function renderTab(tab) {
         <h2>Registrar empresa contratista</h2>
         <form class="form" id="form-empresa">
           <label>Razón social<input type="text" id="empresa-nombre" required></label>
-          <label>RUC (11 dígitos)<input type="text" id="empresa-ruc" required></label>
+          <label>RUC (11 dígitos - será el usuario)<input type="text" id="empresa-ruc" required></label>
           <label>Contacto<input type="text" id="empresa-contacto" required></label>
           <label>Actividad principal
             <select id="empresa-actividad" required>
@@ -122,28 +138,47 @@ async function renderTab(tab) {
       if (error) {
         alert('Error al guardar: ' + error.message);
       } else {
-        alert('Empresa guardada con éxito');
+        alert('Empresa guardada con éxito. Ya puede entrar con su RUC.');
         renderTab('empresas');
       }
     });
   } 
+  // ==========================================
+  // VISTA: TRABAJADORES (Aquí la contrata registra a su gente)
+  // ==========================================
   else if (tab === 'trabajadores') {
-    const { data: empresas } = await db.from('empresas').select('*');
+    let empresas = [];
+
+    // Si es admin, ve todas para elegir. Si es contrata, solo ve la suya.
+    if (sesion.rol === 'admin') {
+      const { data } = await db.from('empresas').select('*');
+      empresas = data;
+    } else {
+      const { data } = await db.from('empresas').select('*').eq('ruc', sesion.ruc);
+      empresas = data;
+    }
     
     if(!empresas || empresas.length === 0) {
-      container.innerHTML = `<div class="card"><p>Primero debes registrar una empresa para poder ver sus requisitos.</p></div>`;
+      container.innerHTML = `<div class="card"><p>No se encontró tu empresa asociada a este RUC. Contacta al administrador.</p></div>`;
       return;
     }
 
-    // Permitimos elegir qué empresa ver mediante un pequeño selector
     const opcionesEmpresas = empresas.map(e => `<option value="${e.id}">${e.nombre} (${e.actividad})</option>`).join('');
     
     container.innerHTML = `
       <div class="card">
-        <h2>Seleccionar Empresa para ver requisitos</h2>
-        <select id="select-empresa" style="width:100%; padding:10px; border-radius:8px; border:1px solid #ccc; margin-bottom:15px;">
-          ${opcionesEmpresas}
-        </select>
+        <h2>Gestión de Trabajadores y Requisitos</h2>
+        
+        ${sesion.rol === 'admin' ? `
+          <label style="display:block; margin-bottom:15px;">Seleccionar Empresa (Vista Admin)
+            <select id="select-empresa" style="width:100%; padding:10px; border-radius:8px; border:1px solid #ccc;">
+              ${opcionesEmpresas}
+            </select>
+          </label>
+        ` : `
+          <p style="margin-bottom:20px;">Bienvenido. Estás gestionando los documentos de: <strong>${empresas[0].nombre}</strong></p>
+        `}
+        
         <div id="lista-reqs-container"></div>
       </div>
     `;
@@ -165,24 +200,32 @@ async function renderTab(tab) {
       }
 
       div.innerHTML = `
-        <p>Basado en su actividad: <strong>${emp.actividad}</strong></p>
-        <div style="background:#f2f8f4; padding:15px; border-radius:8px; margin-top:15px;">
-          <h3>Documentos que debe presentar el trabajador:</h3>
+        <div style="background:#f2f8f4; padding:15px; border-radius:8px; margin-bottom:20px;">
+          <h3>Documentos exigidos para tu actividad:</h3>
           <ul style="margin-top:10px; margin-left:20px; line-height:1.8;">
             ${listaRequisitos}
           </ul>
         </div>
+        
+        <div style="border-top: 1px solid #ddd; padding-top: 20px;">
+          <h3>Registrar nuevo trabajador</h3>
+          <p style="font-size:13px; color:#666; margin-bottom:10px;">(Aquí irá el formulario para ingresar al trabajador y subir sus PDFs)</p>
+          <button style="padding:10px 15px; background:var(--primary-green); color:white; border:none; border-radius:5px; cursor:pointer;">+ Agregar Trabajador</button>
+        </div>
       `;
     }
 
-    // Cargar la primera empresa por defecto
     cargarRequisitosDeEmpresa(empresas[0].id);
 
-    // Escuchar cambios en el selector
-    document.getElementById('select-empresa').addEventListener('change', (e) => {
-      cargarRequisitosDeEmpresa(e.target.value);
-    });
+    if (sesion.rol === 'admin') {
+      document.getElementById('select-empresa').addEventListener('change', (e) => {
+        cargarRequisitosDeEmpresa(e.target.value);
+      });
+    }
   }
+  // ==========================================
+  // VISTA: REQUISITOS (Matriz - Solo Admin)
+  // ==========================================
   else if (tab === 'requisitos') {
     const { data: reqs, error } = await db.from('matriz_requisitos').select('*');
     
@@ -192,10 +235,8 @@ async function renderTab(tab) {
     }
 
     const columnasMatriz = ACTIVIDADES.filter(a => a !== 'Todas las actividades');
-
     let thead = `<tr><th>Requisitos de SST</th>${columnasMatriz.map(a => `<th>${a}</th>`).join('')}</tr>`;
     
-    // Usamos la lista fija de 8 requisitos para que siempre pinte las filas
     let tbody = TODOS_LOS_REQUISITOS.map(reqName => {
       let row = `<tr><td>${reqName}</td>`;
       columnasMatriz.forEach(act => {
@@ -209,7 +250,6 @@ async function renderTab(tab) {
     container.innerHTML = `
       <div class="card">
         <h2>Matriz de Requisitos por Actividad</h2>
-        <p>Esta matriz muestra los documentos exigidos según el tipo de trabajo del contratista.</p>
         <div class="table-wrap" style="margin-top:20px;">
           <table>
             <thead>${thead}</thead>
