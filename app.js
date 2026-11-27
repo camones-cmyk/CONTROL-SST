@@ -1,6 +1,7 @@
 const SUPABASE_URL = 'https://xyfpczgklaaszuvaqvoa.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_cZB78KSsrmef0DfHREkTlA_kiaTPB9h';
-const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+// Aquí está el cambio: lo llamamos supabaseClient
+const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY); 
 
 let sesion = null;
 let currentTab = 'panel';
@@ -57,7 +58,8 @@ async function renderTab(tab) {
   container.innerHTML = '<p>Cargando datos...</p>';
 
   if (tab === 'empresas') {
-    const { data: empresas, error } = await supabase.from('empresas').select('*');
+    // Usamos supabaseClient aquí:
+    const { data: empresas, error } = await supabaseClient.from('empresas').select('*');
     
     if (error) {
       container.innerHTML = `<p>Error al cargar: ${error.message}</p>`;
@@ -105,7 +107,8 @@ async function renderTab(tab) {
         actividad: document.getElementById('empresa-actividad').value
       };
       
-      const { error } = await supabase.from('empresas').insert([nuevaEmpresa]);
+      // Usamos supabaseClient aquí también:
+      const { error } = await supabaseClient.from('empresas').insert([nuevaEmpresa]);
       if (error) {
         alert('Error al guardar: ' + error.message);
       } else {
@@ -115,7 +118,7 @@ async function renderTab(tab) {
     });
   } 
   else if (tab === 'trabajadores') {
-    const { data: empresas } = await supabase.from('empresas').select('*');
+    const { data: empresas } = await supabaseClient.from('empresas').select('*');
     
     if(!empresas || empresas.length === 0) {
       container.innerHTML = `<div class="card"><p>Primero debes registrar una empresa para poder ver sus requisitos.</p></div>`;
@@ -123,7 +126,7 @@ async function renderTab(tab) {
     }
 
     const emp = empresas[0];
-    const { data: reqs } = await supabase.from('matriz_requisitos').select('requisito').eq('actividad', emp.actividad);
+    const { data: reqs } = await supabaseClient.from('matriz_requisitos').select('requisito').eq('actividad', emp.actividad);
     
     const listaRequisitos = reqs && reqs.length > 0 
       ? reqs.map(r => `<li>${r.requisito}</li>`).join('') 
